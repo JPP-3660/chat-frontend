@@ -27,12 +27,24 @@ export async function updateAgent(agentId: string, agentData: any) {
     return res.json();
 }
 
-export async function chatMessage(agentId: string, message: string, history: any[]) {
+export async function fetchSessions(agentId: string) {
+    const res = await fetch(`${API_URL}/chat/sessions/${agentId}`);
+    if (!res.ok) throw new Error("Failed to fetch sessions");
+    return res.json();
+}
+
+export async function fetchMessages(sessionId: string) {
+    const res = await fetch(`${API_URL}/chat/messages/${sessionId}`);
+    if (!res.ok) throw new Error("Failed to fetch messages");
+    return res.json();
+}
+
+export async function chatMessage(agentId: string, message: string, history: any[], sessionId?: string) {
     // This returns a stream, handling in component
     const res = await fetch(`${API_URL}/chat/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent_id: agentId, message, history }),
+        body: JSON.stringify({ agent_id: agentId, message, history, session_id: sessionId }),
     });
     return res;
 }

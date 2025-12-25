@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Send, Bot, User } from "lucide-react";
-import { chatMessage } from "../lib/api";
+import { Send, Bot, User, Copy, Check } from "lucide-react";
+import { chatMessage, fetchSessions, fetchMessages } from "../lib/api";
 import clsx from "clsx";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,11 +13,43 @@ interface Message {
     content: string;
 }
 
+const CopyButton = ({ text, className }: { text: string; className?: string }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error("Failed to copy text: ", err);
+        }
+    };
+
+    return (
+        <button
+            onClick={handleCopy}
+            className={clsx(
+                "p-1 rounded hover:bg-white/10 transition-colors",
+                className
+            )}
+            title="Copy to clipboard"
+        >
+            {copied ? (
+                <Check size={14} className="text-green-500" />
+            ) : (
+                <Copy size={14} className="opacity-50 hover:opacity-100" />
+            )}
+        </button>
+    );
+};
+
 export function Chat() {
     const { agentId } = useParams();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [sessionId, setSessionId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -25,6 +57,29 @@ export function Chat() {
     };
 
     useEffect(scrollToBottom, [messages.length]);
+
+    useEffect(() => {
+        if (agentId) {
+            setMessages([]);
+            setSessionId(null);
+            loadHistory();
+        }
+    }, [agentId]);
+
+    const loadHistory = async () => {
+        if (!agentId) return;
+        try {
+            const sessions = await fetchSessions(agentId);
+            if (sessions.length > 0) {
+                const latestSession = sessions[0];
+                setSessionId(latestSession.id);
+                const history = await fetchMessages(latestSession.id);
+                setMessages(history.map((m: any) => ({ role: m.role, content: m.content })));
+            }
+        } catch (e) {
+            console.error("Failed to load history", e);
+        }
+    };
 
     const handleSend = async () => {
         if (!input.trim() || !agentId) return;
@@ -35,7 +90,13 @@ export function Chat() {
         setIsLoading(true);
 
         try {
-            const response = await chatMessage(agentId, userMsg.content, messages);
+            const response = await chatMessage(agentId, userMsg.content, messages, sessionId || undefined);
+
+            const newSessionId = response.headers.get("X-Session-ID");
+            if (newSessionId && newSessionId !== sessionId) {
+                setSessionId(newSessionId);
+            }
+
             const reader = response.body?.getReader();
             const decoder = new TextDecoder();
 
@@ -85,9 +146,12 @@ export function Chat() {
                                 ? "bg-indigo-600 text-white rounded-br-none"
                                 : "bg-gray-800 text-gray-200 rounded-bl-none"
                         )}>
-                            <div className="text-sm font-medium mb-1 opacity-50 flex items-center gap-2">
-                                {msg.role === "user" ? <User size={14} /> : <Bot size={14} />}
-                                {msg.role === "user" ? "You" : "Agent"}
+                            <div className="text-sm font-medium mb-1 flex items-center justify-between">
+                                <div className="opacity-50 flex items-center gap-2">
+                                    {msg.role === "user" ? <User size={14} /> : <Bot size={14} />}
+                                    {msg.role === "user" ? "You" : "Agent"}
+                                </div>
+                                <CopyButton text={msg.content} />
                             </div>
 
                             {msg.role === "user" ? (
@@ -100,14 +164,22 @@ export function Chat() {
                                             code({ node, inline, className, children, ...props }: any) {
                                                 const match = /language-(\w+)/.exec(className || "");
                                                 return !inline && match ? (
-                                                    <SyntaxHighlighter
-                                                        style={vscDarkPlus}
-                                                        language={match[1]}
-                                                        PreTag="div"
-                                                        {...props}
-                                                    >
-                                                        {String(children).replace(/\n$/, "")}
-                                                    </SyntaxHighlighter>
+                                                    <div className="relative group">
+                                                        <div className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <CopyButton
+                                                                text={String(children).replace(/\n$/, "")}
+                                                                className="bg-gray-800/80 backdrop-blur-sm"
+                                                            />
+                                                        </div>
+                                                        <SyntaxHighlighter
+                                                            style={vscDarkPlus}
+                                                            language={match[1]}
+                                                            PreTag="div"
+                                                            {...props}
+                                                        >
+                                                            {String(children).replace(/\n$/, "")}
+                                                        </SyntaxHighlighter>
+                                                    </div>
                                                 ) : (
                                                     <code className={clsx("bg-gray-700 px-1 py-0.5 rounded font-mono text-xs", className)} {...props}>
                                                         {children}
