@@ -1,4 +1,5 @@
-const API_URL = "http://localhost:8000/api/v1";
+export const BASE_URL = "http://localhost:8000";
+const API_URL = `${BASE_URL}/api/v1`;
 
 export async function fetchAgents() {
     const res = await fetch(`${API_URL}/agents`);
@@ -33,18 +34,30 @@ export async function fetchSessions(agentId: string) {
     return res.json();
 }
 
-export async function fetchMessages(sessionId: string) {
-    const res = await fetch(`${API_URL}/chat/messages/${sessionId}`);
+export async function fetchMessages(sessionId: string, skip: number = 0, limit: number = 20) {
+    const res = await fetch(`${API_URL}/chat/messages/${sessionId}?skip=${skip}&limit=${limit}`);
     if (!res.ok) throw new Error("Failed to fetch messages");
     return res.json();
 }
 
-export async function chatMessage(agentId: string, message: string, history: any[], sessionId?: string) {
+export async function chatMessage(agentId: string, message: string, history: any[], sessionId?: string, signal?: AbortSignal) {
     // This returns a stream, handling in component
     const res = await fetch(`${API_URL}/chat/message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agent_id: agentId, message, history, session_id: sessionId }),
+        signal
     });
     return res;
+}
+
+export async function uploadFile(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_URL}/files/upload`, {
+        method: "POST",
+        body: formData,
+    });
+    if (!res.ok) throw new Error("Failed to upload file");
+    return res.json();
 }

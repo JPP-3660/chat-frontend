@@ -11,7 +11,8 @@ interface AgentFormProps {
 const AVAILABLE_TOOLS = [
     { id: "web_search", label: "Web Search (DuckDuckGo)" },
     { id: "calculator", label: "Calculator" },
-    { id: "code_executor", label: "Code Executor (Python)" }
+    { id: "code_executor", label: "Code Executor (Python)" },
+    { id: "pdf_summarizer", label: "PDF Summarizer" }
 ];
 
 export function AgentForm({ onClose, onSuccess, initialData }: AgentFormProps) {
